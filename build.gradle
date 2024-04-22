@@ -5,15 +5,39 @@ plugins {
 group = 'com.tebreca'
 version = '1.0-SNAPSHOT'
 
+project.ext.lwjglVersion = "3.3.3"
+project.ext.jomlVersion = "1.10.5"
+project.ext.jomlprimitivesVersion = "1.10.0"
+project.ext.lwjglNatives = "natives-windows"
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.9.1')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
-}
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
 
-test {
-    useJUnitPlatform()
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-assimp"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-openal"
+    implementation "org.lwjgl:lwjgl-opus"
+    implementation "org.lwjgl:lwjgl-stb"
+    implementation "org.lwjgl:lwjgl-vma"
+    implementation "org.lwjgl:lwjgl-vulkan"
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opus::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-vma::$lwjglNatives"
+    implementation "org.joml:joml:${jomlVersion}"
+    implementation "org.joml:joml-primitives:${jomlprimitivesVersion}"
+    implementation 'org.apache.logging.log4j:log4j-core:2.22.0'
+    // https://mvnrepository.com/artifact/com.google.inject/guice
+    implementation 'com.google.inject:guice:7.0.0'
+
+    implementation 'io.projectreactor:reactor-core:3.5.11'
+    implementation 'io.projectreactor:reactor-tools:3.5.11'
 }
