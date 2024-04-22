@@ -33,4 +33,5 @@ public static class Game {
     private static WindowSettings getWindowSettings(long defaultMonitor) {
         return WindowSettings.fullscreen(defaultMonitor, "My Kwanta Game!");
     }
-}```
+} 
+```
