@@ -30,6 +30,7 @@ import static org.lwjgl.vulkan.VK13.*;
  * - window: all the glfw window abstractions
  * - data: simple data POJOs for the engine
  */
+@SuppressWarnings("unused")
 public class Engine {
 
     //Constants
@@ -133,6 +134,7 @@ public class Engine {
 
             VkInstanceCreateInfo instanceCreateInfo = VkInstanceCreateInfo.calloc(memoryStack);
             PointerBuffer glfwExtensions = GLFWVulkan.glfwGetRequiredInstanceExtensions();
+            assert glfwExtensions != null;
 
             if (enableValidation || !requestedValidationLayers.isEmpty()) {
                 List<VkLayerProperties> layers = findLayers(memoryStack);
@@ -146,20 +148,19 @@ public class Engine {
             vkEnumerateInstanceExtensionProperties((CharSequence) null, amount, null);
             VkExtensionProperties.Buffer extensionProperties = VkExtensionProperties.calloc(amount.get(), memoryStack);
 
-            List<VkExtensionProperties> extensions = extensionProperties.stream().filter(p -> requiredExtensions.contains(p.extensionNameString())).toList();
-            HashSet<String> extensionNames = new HashSet<>(extensions.stream().map(VkExtensionProperties::extensionNameString).toList());
+            HashSet<String> extensionNames = new HashSet<>(extensionProperties.stream().map(VkExtensionProperties::extensionNameString).filter(requiredExtensions::contains).toList());
 
             if (!extensionNames.containsAll(requiredExtensions)){
                 throw new RuntimeException("Not all required extensions were found!");
             }
 
-            PointerBuffer extensions_pointer = memoryStack.callocPointer(glfwExtensions.remaining() + amount.get(0));
-            extensions_pointer.put(glfwExtensions);
-            extensionNames.stream().map(memoryStack::UTF8).forEach(extensions_pointer::put);
-            extensions_pointer.flip();
+            PointerBuffer extensions = memoryStack.callocPointer(glfwExtensions.remaining() + amount.get(0));
+            extensions.put(glfwExtensions);
+            extensionNames.stream().map(memoryStack::UTF8).forEach(extensions::put);
+            extensions.flip();
 
             instanceCreateInfo.pApplicationInfo(applicationInfo);
-            instanceCreateInfo.ppEnabledExtensionNames(extensions_pointer);
+            instanceCreateInfo.ppEnabledExtensionNames(extensions);
             var vulkan = memoryStack.callocPointer(VkInstance.POINTER_SIZE);
 
             if (vkCreateInstance(instanceCreateInfo, null, vulkan) != VK_SUCCESS) {
