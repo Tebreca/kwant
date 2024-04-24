@@ -5,14 +5,18 @@ plugins {
 group = 'com.tebreca'
 version = '1.0-SNAPSHOT'
 
+
 project.ext.lwjglVersion = "3.3.3"
 project.ext.jomlVersion = "1.10.5"
 project.ext.jomlprimitivesVersion = "1.10.0"
 project.ext.lwjglNatives = "natives-windows"
 
+
 repositories {
     mavenCentral()
 }
+
+
 
 dependencies {
     implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")

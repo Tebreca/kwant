@@ -11,9 +11,7 @@ public class TestEngine {
         Engine engine = new Engine().withWindowSettings(TestEngine::getWindowSettings)
                 .withGameInfo(() -> new GameInfo("Game", 1));
         engine.vulkan().subscribe(TestEngine::setupRender);
-        engine.start();
-
-
+        engine.enableValidationLayers().start();
     }
 
     private static void setupRender(VulkanManager vulkanManager) {
