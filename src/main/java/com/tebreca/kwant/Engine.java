@@ -153,8 +153,10 @@ public class Engine {
                 throw new RuntimeException("Not all required extensions were found!");
             }
 
-            PointerBuffer extensions_pointer = memoryStack.callocPointer(glfwExtensions.capacity() + amount.get());
-            extensions_pointer.put(glfwExtensions).put(extensionProperties);
+            PointerBuffer extensions_pointer = memoryStack.callocPointer(glfwExtensions.remaining() + amount.get(0));
+            extensions_pointer.put(glfwExtensions);
+            extensionNames.stream().map(memoryStack::UTF8).forEach(extensions_pointer::put);
+            extensions_pointer.flip();
 
             instanceCreateInfo.pApplicationInfo(applicationInfo);
             instanceCreateInfo.ppEnabledExtensionNames(extensions_pointer);
