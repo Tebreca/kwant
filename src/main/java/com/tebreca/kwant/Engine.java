@@ -7,6 +7,7 @@ import com.tebreca.kwant.vk.VulkanUtils;
 import com.tebreca.kwant.vk.device.DeviceScorer;
 import com.tebreca.kwant.vk.device.DeviceSettings;
 import com.tebreca.kwant.vk.queue.QueueFamilyFinder;
+import com.tebreca.kwant.vk.swapchain.GraphicsSettings;
 import com.tebreca.kwant.window.WindowSettings;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWVulkan;
@@ -48,7 +49,7 @@ public class Engine {
 
     //Extensions
     private final List<String> requiredExtensions = new ArrayList<>();
-    private final List<String> deviceExtensions = new ArrayList<>();
+    private final List<String> deviceExtensions = new ArrayList<>(List.of(KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME));
 
     // Instance
     private static final Sinks.One<Engine> instanceSink = Sinks.one();
@@ -74,6 +75,10 @@ public class Engine {
     }
 
     private final Sinks.One<VulkanManager> vulkanSink = Sinks.one();
+
+    public Engine withGraphicsSettings(LongFunction<GraphicsSettings> graphicsSettings) {
+        return this.with(GraphicsSettings.class, (Supplier<GraphicsSettings>) () -> graphicsSettings.apply(windowManager.getWindowId()));
+    }
 
     public Engine withWindowSettings(LongFunction<WindowSettings> windowSettings) {
         return this.with(WindowSettings.class, (Supplier<WindowSettings>) () -> windowSettings.apply(glfwGetPrimaryMonitor()));
@@ -137,9 +142,9 @@ public class Engine {
     /**
      * Less controlled but 'cleaner' method, use only if you know what you're doing
      *
-     * @param type     Type of implementation T
-     * @param instance implementation of t
-     * @param <T>      An interface class that is implemented to be used with the engine
+     * @param type     Type of T
+     * @param instance implementation of T
+     * @param <T>      An interface or class that is implemented to be used with the engine
      * @return this
      */
     public <T> Engine with(Class<T> type, T instance) {
@@ -212,13 +217,16 @@ public class Engine {
             DeviceScorer scorer = getDirty(DeviceScorer.class, DeviceScorer::simple);
             QueueFamilyFinder familyFinder = getDirty(QueueFamilyFinder.class, QueueFamilyFinder::simple);
 
-            vulkanManager = new VulkanManager(new VkInstance(vulkan.get(), instanceCreateInfo), scorer, familyFinder);
+
+            vulkanManager = new VulkanManager(new VkInstance(vulkan.get(), instanceCreateInfo), scorer, familyFinder, windowManager.getWindowId());
             vulkanSink.tryEmitValue(vulkanManager).orThrow();
         }
 
         DeviceSettings deviceSettings = getDirty(DeviceSettings.class, new DeviceSettings(VkPhysicalDeviceFeatures.calloc(), 0));
 
         vulkanManager.createDevice(deviceSettings, deviceExtensions);
+        Supplier<GraphicsSettings> graphicsSettings = getDirty(GraphicsSettings.class, (Supplier<GraphicsSettings>) () -> GraphicsSettings.tripleBuffering(windowManager.getWindowId()));
+        vulkanManager.swapChainManager().subscribe(swapChainManager -> swapChainManager.createSwapChain(graphicsSettings.get()));
 
         // RUN PHASE
         windowManager.subscribe();

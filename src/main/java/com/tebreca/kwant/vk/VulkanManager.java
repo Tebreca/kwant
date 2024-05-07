@@ -5,6 +5,7 @@ import com.tebreca.kwant.vk.device.DeviceSettings;
 import com.tebreca.kwant.vk.queue.QueueBuilder;
 import com.tebreca.kwant.vk.queue.QueueFamilyFinder;
 import com.tebreca.kwant.vk.queue.QueueType;
+import com.tebreca.kwant.vk.swapchain.SwapChainManager;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.vulkan.*;
@@ -12,12 +13,15 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 import java.nio.IntBuffer;
+import java.nio.LongBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static org.lwjgl.glfw.GLFWVulkan.glfwCreateWindowSurface;
+import static org.lwjgl.vulkan.KHRSurface.vkGetPhysicalDeviceSurfaceSupportKHR;
 import static org.lwjgl.vulkan.VK13.*;
 
 @SuppressWarnings("unused")
@@ -33,25 +37,47 @@ public final class VulkanManager {
 
     private final List<QueueBuilder.QueueInfo> submittedQueueInfos = new ArrayList<>();
     private final Sinks.One<VkDevice> virtualDeviceSink = Sinks.one();
-    private VkDevice device;
 
-    public VulkanManager(VkInstance vulkan, DeviceScorer scorer, QueueFamilyFinder queueFamilyFinder) {
+    private VkDevice device;
+    private SwapChainManager swapChainManager;
+
+    private final Sinks.One<SwapChainManager> chainManagerSink = Sinks.one();
+
+    public VulkanManager(VkInstance vulkan, DeviceScorer scorer, QueueFamilyFinder queueFamilyFinder, long window) {
         instance = vulkan;
         deviceScorer = scorer;
         physicalDevice = pickPhysicalDevice();
+        long surface = createSurface(window);
         idealQueueFamilies = queueFamilyFinder.getFamilies(physicalDevice);
-        transferFamily = findTransferFamily();
+        transferFamily = findTransferFamily(surface);
+        queue(QueueType.GRAPHICS).family(transferFamily).submit().subscribe(vkQueue -> chainManagerSink.tryEmitValue(new SwapChainManager(this, surface, vkQueue)).orThrow());
+        chainManagerSink.asMono().subscribe(s -> swapChainManager = s);
     }
 
-    private int findTransferFamily() {
+    private long createSurface(long window) {
+        try (var stack = MemoryStack.stackPush()) {
+            LongBuffer longBuffer = stack.callocLong(1);
+            VulkanUtils.assertResult(glfwCreateWindowSurface(instance, window, null, longBuffer), "Failed to create window surface!");
+            return longBuffer.get();
+        }
+    }
+
+    private int findTransferFamily(long surface) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer size = stack.callocInt(1);
             vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, size, null);
             var families = VkQueueFamilyProperties.calloc(size.get(), stack);
+            size.clear();
             vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, size, families);
-            while (families.hasRemaining()){
+            families.flip();
+            int i = 0;
+            while (families.hasRemaining()) {
                 VkQueueFamilyProperties familyProperties = families.get();
-
+                var flag = stack.callocInt(1);
+                vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, i++, surface, flag);
+                if (flag.get() == VK_TRUE) {
+                    return i;
+                }
             }
         }
         return 0;
@@ -89,60 +115,14 @@ public final class VulkanManager {
         return onCleanup.asMono();
     }
 
-    public VkInstance raw(VkInstance instance) {
+    public VkInstance raw() {
         return instance;
     }
 
-    public VkPhysicalDevice physicalDevice() {
-        return physicalDevice;
+
+    public QueueBuilder queue(QueueType type) {
+        return new QueueBuilder(type, this);
     }
-
-
-    public void createDevice(DeviceSettings deviceSettings, List<String> extensions) {
-        try (var stack = MemoryStack.stackPush()) {
-            VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.calloc(stack);
-            deviceCreateInfo.sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
-            PointerBuffer device = stack.mallocPointer(1);
-            VkDeviceQueueCreateInfo.Buffer queueCreateInfos = buildQueueCreateInfoBuffer(stack);
-            queueCreateInfos.flip();
-            deviceCreateInfo.pQueueCreateInfos(queueCreateInfos);
-            deviceCreateInfo.flags(deviceSettings.flags());
-            deviceCreateInfo.pEnabledFeatures(deviceSettings.deviceFeatures());
-            int i = 0;
-            if (!extensions.isEmpty()) {
-                var names = stack.mallocPointer(extensions.size());
-                for (String name : extensions) {
-                    System.out.printf("Enabling extension %s %n", name);
-                    names.put(i++, stack.ASCII(name.stripIndent()));
-                }
-                names.flip();
-                deviceCreateInfo.ppEnabledExtensionNames(names);
-            }
-
-            VulkanUtils.assertResult(vkCreateDevice(physicalDevice, deviceCreateInfo, null, device), "Failed to create Logical Device!");
-            this.device = new VkDevice(device.get(), physicalDevice, deviceCreateInfo);
-
-
-            HashMap<Integer, Integer> indexAmounts = new HashMap<>();
-            for (QueueBuilder.QueueInfo info : submittedQueueInfos) {
-                indexAmounts.put(info.familyIndex(), indexAmounts.getOrDefault(info.familyIndex(), 0) + 1);
-            }
-
-            for (Map.Entry<Integer, Integer> entry : indexAmounts.entrySet()) {
-                Integer family = entry.getKey();
-                i = 0;
-                Stream<QueueBuilder.QueueInfo> queueInfoStream = submittedQueueInfos.stream().filter(queueInfo -> queueInfo.familyIndex() == family);
-                for (QueueBuilder.QueueInfo queueInfo : queueInfoStream.toList()) {
-                    PointerBuffer queue = stack.callocPointer(1);
-                    vkGetDeviceQueue(this.device, family, i++, queue);
-                    long handle = queue.get(0);
-                    queueInfo.sink().tryEmitValue(new VkQueue(handle, this.device)).orThrow();
-                }
-            }
-            deviceSettings.deviceFeatures().close();
-        }
-    }
-
 
     private VkDeviceQueueCreateInfo.Buffer buildQueueCreateInfoBuffer(MemoryStack stack) {
         HashMap<Integer, Integer> indexAmounts = new HashMap<>();
@@ -170,22 +150,70 @@ public final class VulkanManager {
         return buffer;
     }
 
-    public Mono<VkDevice> virtualDevice() {
-        return virtualDeviceSink.asMono();
-    }
+    public void createDevice(DeviceSettings deviceSettings, List<String> extensions) {
+        try (var stack = MemoryStack.stackPush()) {
+            VkDeviceCreateInfo deviceCreateInfo = VkDeviceCreateInfo.calloc(stack);
+            deviceCreateInfo.sType(VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
+            PointerBuffer device = stack.mallocPointer(1);
+            VkDeviceQueueCreateInfo.Buffer queueCreateInfos = buildQueueCreateInfoBuffer(stack);
+            queueCreateInfos.flip();
+            deviceCreateInfo.pQueueCreateInfos(queueCreateInfos);
+            deviceCreateInfo.flags(deviceSettings.flags());
+            deviceCreateInfo.pEnabledFeatures(deviceSettings.deviceFeatures());
+            int i = 0;
+            if (!extensions.isEmpty()) {
+                var names = stack.mallocPointer(extensions.size());
+                extensions.stream().map(stack::ASCII).forEach(names::put);
+                deviceCreateInfo.ppEnabledExtensionNames(names.flip());
+            }
 
-    public QueueBuilder queue(QueueType type) {
-        return new QueueBuilder(type, this);
+            VulkanUtils.assertResult(vkCreateDevice(physicalDevice, deviceCreateInfo, null, device), "Failed to create Logical Device!");
+            this.device = new VkDevice(device.get(), physicalDevice, deviceCreateInfo);
+
+            virtualDeviceSink.tryEmitValue(this.device).orThrow();
+
+            HashMap<Integer, Integer> indexAmounts = new HashMap<>();
+            for (QueueBuilder.QueueInfo info : submittedQueueInfos) {
+                indexAmounts.put(info.familyIndex(), indexAmounts.getOrDefault(info.familyIndex(), 0) + 1);
+            }
+
+            for (Map.Entry<Integer, Integer> entry : indexAmounts.entrySet()) {
+                Integer family = entry.getKey();
+                i = 0;
+                Stream<QueueBuilder.QueueInfo> queueInfoStream = submittedQueueInfos.stream().filter(queueInfo -> queueInfo.familyIndex() == family);
+                for (QueueBuilder.QueueInfo queueInfo : queueInfoStream.toList()) {
+                    PointerBuffer queue = stack.callocPointer(1);
+                    vkGetDeviceQueue(this.device, family, i++, queue);
+                    long handle = queue.get(0);
+                    queueInfo.sink().tryEmitValue(new VkQueue(handle, this.device)).orThrow();
+                }
+            }
+
+            deviceSettings.deviceFeatures().close();
+        }
     }
 
     public void cleanup() {
         // It may be better not to throw here and just continue. TODO: logger.error to inform user about this problem
         onCleanup.tryEmitValue(instance);
+        swapChainManager.destroyChain();
         vkDestroyDevice(device, null);
         vkDestroyInstance(instance, null);
     }
 
+    public Mono<VkDevice> virtualDevice() {
+        return virtualDeviceSink.asMono();
+    }
+
+    public VkPhysicalDevice physicalDevice() {
+        return physicalDevice;
+    }
+
     public void submitQueue(QueueBuilder.QueueInfo queueInfo) {
         submittedQueueInfos.add(queueInfo);
+    }
+
+    public Mono<SwapChainManager> swapChainManager() {
+        return chainManagerSink.asMono();
     }
 }

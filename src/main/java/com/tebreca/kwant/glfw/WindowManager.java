@@ -46,4 +46,8 @@ public class WindowManager {
     public void cleanup() {
         glfwDestroyWindow(windowId);
     }
+
+    public long getWindowId() {
+        return windowId;
+    }
 }

@@ -1,11 +1,12 @@
 package com.tebreca.kwant.vk.device;
 
 import org.lwjgl.system.MemoryStack;
-import org.lwjgl.vulkan.VkPhysicalDevice;
-import org.lwjgl.vulkan.VkPhysicalDeviceFeatures;
-import org.lwjgl.vulkan.VkPhysicalDeviceProperties;
-import org.lwjgl.vulkan.VkQueueFamilyProperties;
+import org.lwjgl.vulkan.*;
 
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+
+import static org.lwjgl.vulkan.KHRSwapchain.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
 import static org.lwjgl.vulkan.VK13.*;
 
 public interface DeviceScorer {
@@ -30,10 +31,22 @@ public interface DeviceScorer {
 
             score += deviceProperties.limits().maxImageDimension2D();
 
-            var size = stack.callocInt(1);
+            IntBuffer size = stack.callocInt(1);
             vkGetPhysicalDeviceQueueFamilyProperties(device, size, null);
             VkQueueFamilyProperties.Buffer queueFamilies = VkQueueFamilyProperties.calloc(size.get(), stack);
             vkGetPhysicalDeviceQueueFamilyProperties(device, size.clear(), queueFamilies);
+
+            vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, size, null);
+            VkExtensionProperties.Buffer extensions = VkExtensionProperties.calloc(size.get(), stack);
+            vkEnumerateDeviceExtensionProperties(device, (ByteBuffer) null, size.clear(), extensions);
+
+            boolean flag = false;
+            while (extensions.hasRemaining()) {
+                VkExtensionProperties vkExtensionProperties = extensions.get();
+                flag |= VK_KHR_SWAPCHAIN_EXTENSION_NAME.equals(vkExtensionProperties.extensionNameString());
+            }
+
+            if (!flag) return -1; // no support for required extensions
 
             boolean supportsGraphics = false;
 

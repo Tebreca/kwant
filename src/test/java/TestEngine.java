@@ -4,7 +4,7 @@ import com.tebreca.kwant.vk.VulkanManager;
 import com.tebreca.kwant.vk.queue.QueueType;
 import com.tebreca.kwant.window.WindowSettings;
 import org.joml.Vector2i;
-import org.lwjgl.vulkan.VK13;
+import org.lwjgl.vulkan.KHRSwapchain;
 import org.lwjgl.vulkan.VkQueue;
 
 public class TestEngine {
@@ -15,7 +15,6 @@ public class TestEngine {
     public static void main(String[] args) {
         Engine engine = new Engine().withWindowSettings(TestEngine::getWindowSettings)
                 .withGameInfo(new GameInfo("Game", 1));
-        engine.vulkan().subscribe(new TestEngine()::setupRender);
         engine.withValidationLayer("VK_LAYER_KHRONOS_validation").start();
     }
 
