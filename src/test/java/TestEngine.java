@@ -2,9 +2,8 @@ import com.tebreca.kwant.Engine;
 import com.tebreca.kwant.general.GameInfo;
 import com.tebreca.kwant.vk.VulkanManager;
 import com.tebreca.kwant.vk.queue.QueueType;
-import com.tebreca.kwant.window.WindowSettings;
+import com.tebreca.kwant.glfw.window.WindowSettings;
 import org.joml.Vector2i;
-import org.lwjgl.vulkan.KHRSwapchain;
 import org.lwjgl.vulkan.VkQueue;
 
 public class TestEngine {

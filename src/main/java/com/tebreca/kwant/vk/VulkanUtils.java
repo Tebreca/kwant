@@ -7,7 +7,6 @@ public class VulkanUtils {
         if (result != VK_SUCCESS){
             AssertionError sub = new AssertionError("Native vulkan call did not return VK_SUCCES (=0), but rather: " + result);
             throw new RuntimeException(error, sub);
-
         }
     }
 

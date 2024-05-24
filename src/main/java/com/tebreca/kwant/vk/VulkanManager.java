@@ -5,6 +5,8 @@ import com.tebreca.kwant.vk.device.DeviceSettings;
 import com.tebreca.kwant.vk.queue.QueueBuilder;
 import com.tebreca.kwant.vk.queue.QueueFamilyFinder;
 import com.tebreca.kwant.vk.queue.QueueType;
+import com.tebreca.kwant.vk.shader.Shader;
+import com.tebreca.kwant.vk.shader.ShaderBuilder;
 import com.tebreca.kwant.vk.swapchain.SwapChainManager;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
@@ -12,6 +14,9 @@ import org.lwjgl.vulkan.*;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
+import javax.annotation.Nonnull;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.nio.IntBuffer;
 import java.nio.LongBuffer;
 import java.util.ArrayList;
@@ -33,7 +38,7 @@ public final class VulkanManager {
 
     private final Map<QueueType, Integer> idealQueueFamilies;
 
-    private final int transferFamily;
+    private final int presentFamily;
 
     private final List<QueueBuilder.QueueInfo> submittedQueueInfos = new ArrayList<>();
     private final Sinks.One<VkDevice> virtualDeviceSink = Sinks.one();
@@ -42,6 +47,7 @@ public final class VulkanManager {
     private SwapChainManager swapChainManager;
 
     private final Sinks.One<SwapChainManager> chainManagerSink = Sinks.one();
+    private List<Shader> shaders = new ArrayList<>();
 
     public VulkanManager(VkInstance vulkan, DeviceScorer scorer, QueueFamilyFinder queueFamilyFinder, long window) {
         instance = vulkan;
@@ -49,8 +55,8 @@ public final class VulkanManager {
         physicalDevice = pickPhysicalDevice();
         long surface = createSurface(window);
         idealQueueFamilies = queueFamilyFinder.getFamilies(physicalDevice);
-        transferFamily = findTransferFamily(surface);
-        queue(QueueType.GRAPHICS).family(transferFamily).submit().subscribe(vkQueue -> chainManagerSink.tryEmitValue(new SwapChainManager(this, surface, vkQueue)).orThrow());
+        presentFamily = findPresentFamily(surface);
+        queue(QueueType.GRAPHICS).family(presentFamily).submit().subscribe(vkQueue -> chainManagerSink.tryEmitValue(new SwapChainManager(this, surface, vkQueue)).orThrow());
         chainManagerSink.asMono().subscribe(s -> swapChainManager = s);
     }
 
@@ -62,7 +68,7 @@ public final class VulkanManager {
         }
     }
 
-    private int findTransferFamily(long surface) {
+    private int findPresentFamily(long surface) {
         try (MemoryStack stack = MemoryStack.stackPush()) {
             IntBuffer size = stack.callocInt(1);
             vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, size, null);
@@ -139,12 +145,12 @@ public final class VulkanManager {
             for (float f : submittedQueueInfos.stream().filter(queueInfo -> queueInfo.familyIndex() == family).map(QueueBuilder.QueueInfo::priority).toList()) {
                 priorities.put(f);
             }
-            var instance = VkDeviceQueueCreateInfo.calloc(stack);
-            instance.sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO);
+            var deviceQueueCreateInfo = VkDeviceQueueCreateInfo.calloc(stack);
+            deviceQueueCreateInfo.sType(VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO);
             priorities.flip();
-            instance.pQueuePriorities(priorities);
-            instance.queueFamilyIndex(family);
-            buffer.put(instance);
+            deviceQueueCreateInfo.pQueuePriorities(priorities);
+            deviceQueueCreateInfo.queueFamilyIndex(family);
+            buffer.put(deviceQueueCreateInfo);
         }
 
         return buffer;
@@ -215,5 +221,32 @@ public final class VulkanManager {
 
     public Mono<SwapChainManager> swapChainManager() {
         return chainManagerSink.asMono();
+    }
+
+    /**
+     * @param location location of the .spv file
+     * @return a ShaderBuilder instance for creating the shader
+     */
+    public ShaderBuilder shader(@Nonnull String location) {
+        try {
+            File file = new File(location);
+            if (!file.exists()) throw new FileNotFoundException("Shader file doesn't exist!");
+            return new ShaderBuilder(file, this);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to open shader file %s !".formatted(location), e);
+        }
+    }
+
+
+    /**
+     * This method is for internal use. Do not use unless you know what you're doing!
+     * Use VulkanManager::shader to import shader files
+     *
+     * @param shader
+     */
+    @SuppressWarnings("DeprecatedIsStillUsed")
+    @Deprecated
+    public void withShader(Shader shader) {
+        this.shaders.add(shader);
     }
 }

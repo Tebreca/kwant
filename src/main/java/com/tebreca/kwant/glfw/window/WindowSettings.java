@@ -1,4 +1,4 @@
-package com.tebreca.kwant.window;
+package com.tebreca.kwant.glfw.window;
 
 import org.joml.Vector2i;
 

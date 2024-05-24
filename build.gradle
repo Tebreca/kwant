@@ -16,9 +16,12 @@ repositories {
     mavenCentral()
 }
 
+compileJava {
+}
 
 
 dependencies {
+
     implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
 
     implementation "org.lwjgl:lwjgl"

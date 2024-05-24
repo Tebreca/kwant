@@ -1,6 +1,6 @@
 package com.tebreca.kwant.glfw;
 
-import com.tebreca.kwant.window.WindowSettings;
+import com.tebreca.kwant.glfw.window.WindowSettings;
 import org.joml.Vector2i;
 
 import static org.lwjgl.glfw.GLFW.*;

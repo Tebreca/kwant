@@ -23,6 +23,7 @@ public class SwapChainManager {
     private long swapchain;
 
     private long[] imageHandles;
+    private long[] imageViewHandles;
 
 
     public SwapChainManager(VulkanManager vulkanManager, long surface, VkQueue presentQueue) {
@@ -49,7 +50,7 @@ public class SwapChainManager {
             int imageCount = maxImageCount == 0 ? Math.max(settings.buffering(), surfaceCapabilitiesKHR.minImageCount() + 1) : Math.clamp(settings.buffering(), surfaceCapabilitiesKHR.minImageCount(), maxImageCount);
 
             VkSwapchainCreateInfoKHR createInfo = VkSwapchainCreateInfoKHR.calloc(stack);
-            createInfo.sType(VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR);
+            createInfo.sType$Default();
             createInfo.surface(surface);
             createInfo.imageFormat(surfaceFormatKHR.format());
             createInfo.imageColorSpace(surfaceFormatKHR.colorSpace());
@@ -74,6 +75,24 @@ public class SwapChainManager {
             vkGetSwapchainImagesKHR(device, swapchain, size.clear(), images);
             imageHandles = new long[size.get()];
             images.get(imageHandles);
+
+            images.clear();
+            for (long image : imageHandles) {
+                LongBuffer view = stack.callocLong(1);
+                //TODO: more configurable
+                VkImageViewCreateInfo info = VkImageViewCreateInfo.calloc(stack);
+                info.sType$Default();
+                info.image(image);
+                info.viewType(VK_IMAGE_VIEW_TYPE_2D);
+                info.format(surfaceFormatKHR.format());
+                info.components().set(VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY, VK_COMPONENT_SWIZZLE_IDENTITY);
+                info.subresourceRange().set(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
+                VulkanUtils.assertResult(vkCreateImageView(device, info, null, view), String.format("Failed to create imageView %d of %d", images.position() + 1, images.capacity()));
+                images.put(view);
+            }
+            imageViewHandles = new long[imageHandles.length];
+            images.flip().get(imageViewHandles);
+
         }
     }
 
@@ -101,6 +120,9 @@ public class SwapChainManager {
     }
 
     public void destroyChain() {
+        for (long handle : imageViewHandles) {
+            vkDestroyImageView(device, handle, null);
+        }
         vkDestroySwapchainKHR(device, swapchain, null);
         vkDestroySurfaceKHR(vulkanManager.raw(), surface, null);
     }

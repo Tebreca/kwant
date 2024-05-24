@@ -8,7 +8,7 @@ import com.tebreca.kwant.vk.device.DeviceScorer;
 import com.tebreca.kwant.vk.device.DeviceSettings;
 import com.tebreca.kwant.vk.queue.QueueFamilyFinder;
 import com.tebreca.kwant.vk.swapchain.GraphicsSettings;
-import com.tebreca.kwant.window.WindowSettings;
+import com.tebreca.kwant.glfw.window.WindowSettings;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWVulkan;
 import org.lwjgl.system.MemoryStack;
