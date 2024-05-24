@@ -16,15 +16,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.LongBuffer;
 
+import static org.lwjgl.vulkan.VK12.nvkGetDeviceMemoryOpaqueCaptureAddress;
 import static org.lwjgl.vulkan.VK13.vkCreateShaderModule;
 
 @SuppressWarnings({"unused"})
 public class ShaderBuilder {
 
-    private final Mono<VkDevice> device;
+    private final Mono<VkDevice> deviceMono;
     private final File resource;
     private final Sinks.One<Shader> one = Sinks.one();
     private int stage;
+
+    private int moduleFlags = 0x0b;
+    private int shaderFlags = 0x0b;
 
     private String name = "main";
 
@@ -35,10 +39,21 @@ public class ShaderBuilder {
         return this;
     }
 
+    public ShaderBuilder withModuleFlags(int flags) {
+        this.moduleFlags |= flags;
+        return this;
+    }
+
+    public ShaderBuilder withShaderFlags(int shaderFlags) {
+        this.shaderFlags |= shaderFlags;
+        return this;
+    }
+
     public ShaderBuilder name(String name) {
         this.name = name;
         return this;
     }
+
 
     public ShaderBuilder specializationInfo(VkSpecializationInfo specializationInfo) {
         this.specializationInfo = specializationInfo;
@@ -47,13 +62,13 @@ public class ShaderBuilder {
 
     @SuppressWarnings("deprecation")
     public ShaderBuilder(File resource, VulkanManager manager) throws RuntimeException {
-        this.device = manager.virtualDevice();
+        this.deviceMono = manager.virtualDevice();
         one.asMono().subscribe(manager::withShader);
         this.resource = resource;
     }
 
     public Mono<Shader> build() {
-        device.subscribeOn(Schedulers.immediate()).subscribe(device -> {
+        deviceMono.subscribeOn(Schedulers.immediate()).subscribe(device -> {
             try (FileInputStream fileInputStream = new FileInputStream(resource); var stack = MemoryStack.stackPush()) {
                 byte[] raw = fileInputStream.readAllBytes();
                 int size = raw.length;
@@ -62,9 +77,10 @@ public class ShaderBuilder {
                 data.put(raw).flip();
                 info.pCode(data);
                 info.sType$Default();
+                info.flags(moduleFlags);
                 LongBuffer module = stack.callocLong(1);
                 VulkanUtils.assertResult(vkCreateShaderModule(device, info, null, module), "Failed to load in shader %s".formatted(resource.getAbsolutePath()));
-                one.tryEmitValue(new Shader(module.get(), stage, name, specializationInfo));
+                one.tryEmitValue(new Shader(module.get(), stage, name, specializationInfo, shaderFlags));
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read shader data from file!", e);
             }

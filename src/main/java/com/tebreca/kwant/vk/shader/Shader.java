@@ -5,11 +5,20 @@ import org.lwjgl.vulkan.VkPipelineShaderStageCreateInfo;
 import org.lwjgl.vulkan.VkSpecializationInfo;
 
 import javax.annotation.Nullable;
-public record Shader(long module, int stage, String name, @Nullable VkSpecializationInfo specializationInfo) {
+import java.nio.ByteBuffer;
 
-    VkPipelineShaderStageCreateInfo generate(MemoryStack stack) {
-        //TODO implement ? Maybe move out of record
-        return VkPipelineShaderStageCreateInfo.calloc(stack);
+public record Shader(long module, int stage, String name, @Nullable VkSpecializationInfo specializationInfo,
+                     int shaderFlags) {
+
+    public VkPipelineShaderStageCreateInfo populateShaderStageCreateInfo(MemoryStack stack) {
+        VkPipelineShaderStageCreateInfo createInfo = VkPipelineShaderStageCreateInfo.calloc(stack);
+        createInfo.sType$Default();
+        createInfo.module(module);
+        createInfo.flags(shaderFlags);
+        ByteBuffer nameBuffer = stack.ASCII(name);
+        createInfo.pName(nameBuffer);
+        createInfo.pSpecializationInfo(specializationInfo);
+        return createInfo;
     }
 
     boolean hasSpecializationInfo() {
