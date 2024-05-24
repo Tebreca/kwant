@@ -11,7 +11,7 @@ Kwanta is written according to the following mentality;
 - Kwanta is minimal, no more code is written than bare minimally required, without undermining features required to run a general game.
 - Javadocs are one of the nicer features of Java, however, I write them after the fact as to not interfere with productivity.
 - Any major release needs full documentation in the form of JDoc and normal explanation.
-- Any void functions, when relevant, will return their own type to improve writing flow.
+- Any normally void functions, when relevant, will return ''this'' to improve writing flow.
 
 ### Native ready
 
