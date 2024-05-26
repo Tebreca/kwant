@@ -1,6 +1,7 @@
 import com.tebreca.kwant.Engine;
 import com.tebreca.kwant.general.GameInfo;
 import com.tebreca.kwant.vk.VulkanManager;
+import com.tebreca.kwant.vk.pipeline.PipelineBuilder;
 import com.tebreca.kwant.vk.queue.QueueType;
 import com.tebreca.kwant.glfw.window.WindowSettings;
 import org.joml.Vector2i;
@@ -20,6 +21,9 @@ public class TestEngine {
     private void setupRender(VulkanManager vulkanManager) {
         vulkanManager.queue(QueueType.TRANSFER).submit().subscribe(vkQueue -> transferQueue = vkQueue);
         vulkanManager.queue(QueueType.GRAPHICS).submit().subscribe(vkQueue -> graphicsQueue = vkQueue);
+
+        PipelineBuilder pipeline = vulkanManager.pipeline();
+        pipeline.vertexInput().instance(11,1,1,1, 1);
 
     }
 

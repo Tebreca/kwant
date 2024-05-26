@@ -2,6 +2,7 @@ package com.tebreca.kwant.vk;
 
 import com.tebreca.kwant.vk.device.DeviceScorer;
 import com.tebreca.kwant.vk.device.DeviceSettings;
+import com.tebreca.kwant.vk.pipeline.PipelineBuilder;
 import com.tebreca.kwant.vk.queue.QueueBuilder;
 import com.tebreca.kwant.vk.queue.QueueFamilyFinder;
 import com.tebreca.kwant.vk.queue.QueueType;
@@ -47,6 +48,8 @@ public final class VulkanManager {
     private SwapChainManager swapChainManager;
 
     private final Sinks.One<SwapChainManager> chainManagerSink = Sinks.one();
+
+    private final Sinks.One<MemoryStack> onInitSink = Sinks.one();
     private List<Shader> shaders = new ArrayList<>();
 
     public VulkanManager(VkInstance vulkan, DeviceScorer scorer, QueueFamilyFinder queueFamilyFinder, long window) {
@@ -58,6 +61,7 @@ public final class VulkanManager {
         presentFamily = findPresentFamily(surface);
         queue(QueueType.GRAPHICS).family(presentFamily).submit().subscribe(vkQueue -> chainManagerSink.tryEmitValue(new SwapChainManager(this, surface, vkQueue)).orThrow());
         chainManagerSink.asMono().subscribe(s -> swapChainManager = s);
+
     }
 
     private long createSurface(long window) {
@@ -248,5 +252,13 @@ public final class VulkanManager {
     @Deprecated
     public void withShader(Shader shader) {
         this.shaders.add(shader);
+    }
+
+    public PipelineBuilder pipeline() {
+        return new PipelineBuilder(this);
+    }
+
+    public Mono<MemoryStack> onInit() {
+        return onInitSink.asMono();
     }
 }

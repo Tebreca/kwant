@@ -37,7 +37,7 @@ public class QueueBuilder {
     public Mono<VkQueue> submit() {
         Sinks.One<VkQueue> one = Sinks.one();
         vulkanManager.submitQueue(new QueueInfo(one, familyOverride.orElse(vulkanManager.getIdealFamilyIndex(queueType)), priority));
-        return one.asMono(); //TODO
+        return one.asMono();
     }
 
     public record QueueInfo(Sinks.One<VkQueue> sink, int familyIndex, float priority) {
