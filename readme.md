@@ -5,7 +5,7 @@ to graphics programming in vulkan, taking full advantage of the rich libraries t
 ## Scope
 
 ### Design mentality
-Kwanta is written according to the following mentality;
+Kwant is written according to the following mentality;
 - Mono and Flux are used exclusively for futures, replays and/or specifically streamable values. So *NOT* for getter values!
 - Kwanta calls are stateless, they can always be called in whatever order preferred. Kwanta takes the values at its own pace and order.
 - Kwanta is minimal, no more code is written than bare minimally required, without undermining features required to run a general game.
